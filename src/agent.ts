@@ -1,0 +1,56 @@
+import { Spectrum } from "spectrum-ts";
+import { terminal } from "spectrum-ts/providers/terminal";
+
+const DURESS = "water my plants";
+
+type Mode = "menu" | "stay" | "help";
+const modes = new Map<string, Mode>();
+
+const MENU =
+  "Hey — I'm here.\n" +
+  "Reply 1 to Stay With Me\n" +
+  "Reply 2 for Help Now";
+
+const app = await Spectrum({
+  providers: [terminal.config()],
+});
+
+for await (const [space, message] of app.messages) {
+  if (message.content.type !== "text") continue;
+
+  const text = message.content.text.trim();
+  const who = space.id;
+  const mode = modes.get(who) ?? "menu";
+
+  let reply: string;
+
+  if (mode === "menu") {
+    if (text === "1") {
+      modes.set(who, "stay");
+      reply = "I'm here. Where are you headed?";
+    } else if (text === "2") {
+      modes.set(who, "help");
+      reply = "Okay. Getting people to you right now.";
+      escalate(who, "help_now", text);
+    } else {
+      reply = MENU;
+    }
+  } else if (mode === "stay") {
+    if (text.toLowerCase().includes(DURESS)) {
+      escalate(who, "duress_phrase", text);
+      reply = "Sure, no problem. How's the walk going?";
+    } else {
+      reply = "Still with you. What's going on?";
+    }
+  } else {
+    reply = "Hang tight, help is coming.";
+  }
+
+  await space.send(reply);
+}
+
+function escalate(who: string, trigger: string, lastMessage: string) {
+  console.log("\n=== ESCALATION ===");
+  console.log({ who, trigger, lastMessage, at: new Date().toISOString() });
+  console.log("==================\n");
+}
