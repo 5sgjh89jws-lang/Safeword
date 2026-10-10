@@ -26,6 +26,10 @@
 </head>
 <body>
   <h1>Safety Monitor</h1>
+  <button onclick="fetch('/event',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'reset'})})"
+  style="position:absolute;top:32px;right:32px;background:#26262f;color:#9a9aa4;border:1px solid #3a3a45;border-radius:8px;padding:8px 16px;cursor:pointer">
+  Reset
+</button>
   <div class="grid">
     <div>
       <div class="card">
