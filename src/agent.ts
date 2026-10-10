@@ -11,6 +11,21 @@ const MENU =
   "Reply 1 to Stay With Me\n" +
   "Reply 2 for Help Now";
 
+async function report(event: any) {
+  try {
+    await fetch("http://localhost:3000/event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(event),
+    });
+  } catch {}
+}
+
+function escalate(who: string, trigger: string, lastMessage: string) {
+  console.log("\n=== ESCALATION ===", trigger, "\n");
+  report({ type: "escalate", trigger, lastMessage });
+}
+
 const app = await Spectrum({
   providers: [terminal.config()],
 });
@@ -46,11 +61,8 @@ for await (const [space, message] of app.messages) {
     reply = "Hang tight, help is coming.";
   }
 
-  await space.send(reply);
-}
+  await report({ type: "message", from: "user", text, mode: modes.get(who) ?? "menu" });
+  await report({ type: "message", from: "agent", text: reply });
 
-function escalate(who: string, trigger: string, lastMessage: string) {
-  console.log("\n=== ESCALATION ===");
-  console.log({ who, trigger, lastMessage, at: new Date().toISOString() });
-  console.log("==================\n");
+  await space.send(reply);
 }
