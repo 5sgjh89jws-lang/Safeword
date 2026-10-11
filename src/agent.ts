@@ -1,4 +1,6 @@
+import "dotenv/config";
 import { Spectrum } from "spectrum-ts";
+import { imessage } from "spectrum-ts/providers/imessage";
 import { terminal } from "spectrum-ts/providers/terminal";
 
 const DURESS = "water my plants";
@@ -27,10 +29,22 @@ function escalate(who: string, trigger: string, lastMessage: string) {
 }
 
 const app = await Spectrum({
-  providers: [terminal.config()],
+  projectId: process.env.SPECTRUM_PROJECT_ID!,
+  projectSecret: process.env.SPECTRUM_PROJECT_SECRET!,
+  providers: [imessage.config(), terminal.config()],
 });
 
+console.log("agent live on iMessage + terminal");
+
 for await (const [space, message] of app.messages) {
+  console.log(
+    "INCOMING:",
+    message.platform,
+    message.content.type,
+    "sender:", message.sender?.id ?? "unknown",
+    "space:", space.id
+  );
+
   if (message.content.type !== "text") continue;
 
   const text = message.content.text.trim();
@@ -64,5 +78,10 @@ for await (const [space, message] of app.messages) {
   await report({ type: "message", from: "user", text, mode: modes.get(who) ?? "menu" });
   await report({ type: "message", from: "agent", text: reply });
 
-  await space.send(reply);
+  try {
+    await space.send(reply);
+    console.log("SENT:", reply.slice(0, 40));
+  } catch (e: any) {
+    console.error("SEND FAILED:", e.message);
+  }
 }
