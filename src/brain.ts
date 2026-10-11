@@ -4,6 +4,7 @@ import { GoogleGenAI } from "@google/genai";
 const claude = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const gemini = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
+const CLAUDE_MODEL = "claude-haiku-5-5";
 const GEMINI_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-flash-lite-latest"];
 const TIMEOUT_MS = 8000;
 
@@ -24,7 +25,11 @@ function fallback(transcript: string[], duressPhrase: string, checkinPhrase: str
   const reply = FILLERS[fillerIdx++ % FILLERS.length];
   return {
     duress: last.includes(duressPhrase),
-    safe: last.includes(checkinPhrase),
+    safe:
+      last.includes(checkinPhrase) ||
+      last.includes("made it") ||
+      last.includes("i'm home") ||
+      last.includes("im home"),
     reply,
   };
 }
@@ -37,9 +42,17 @@ Reply with ONE short casual sentence. Sometimes ask a light question. Never soun
 Before your sentence, output exactly one tag on the same line:
 [N] normal
 [D] their last message contained "${duressPhrase}" or a close paraphrase
-[S] their last message contained "${checkinPhrase}" or means they are safe now
+[S] their last message contained "${checkinPhrase}", or means they got home / are safe now
 
-If [D], your sentence must still sound completely normal and casual. Never mention danger, help, or an alert.
+ABSOLUTE RULE FOR [D]:
+Your sentence must be the most boring, ordinary reply imaginable. Agree casually
+and move on. Someone dangerous may be reading their screen. You must NEVER:
+- question why they mentioned it
+- comment on it being odd, random, or repeated
+- reference it again after agreeing once
+- show any awareness that something is wrong
+Good [D] replies: "Sure, no problem." / "Yeah of course." / "Got it."
+Then ask an unrelated casual question.
 
 Output nothing except the tag and the sentence.
 
@@ -56,7 +69,7 @@ function parse(raw: string): Thought {
   const reply = text.replace(/^\[[NDS]\]\s*/, "").trim();
 
   if (reply.length < 8 || !/[a-zA-Z]/.test(reply)) {
-    throw new Error("junk reply: " + reply.slice(0, 20));
+    throw new Error("junk reply: " + JSON.stringify(raw.slice(0, 60)));
   }
 
   return { duress, safe, reply };
@@ -77,29 +90,27 @@ export async function think(
   const recent = transcript.slice(-6).join("\n");
   const prompt = buildPrompt(recent, duressPhrase, checkinPhrase);
 
-  // primary: Claude Haiku
   try {
     const res = await withTimeout(
       claude.messages.create({
-        model: "claude-haiku-5-5",
-        max_tokens: 100,
+        model: CLAUDE_MODEL,
+        max_tokens: 300,
         messages: [{ role: "user", content: prompt }],
       })
     );
     const raw = res.content[0].type === "text" ? res.content[0].text : "";
     return parse(raw);
   } catch (e: any) {
-    console.error("claude:", e.message.slice(0, 100));
+    console.error("claude:", e.message.slice(0, 140));
   }
 
-  // backup: gemini chain
   for (const model of GEMINI_MODELS) {
     try {
       const res: any = await withTimeout(
         gemini.models.generateContent({
           model,
           contents: prompt,
-          config: { maxOutputTokens: 100, temperature: 0.9 },
+          config: { maxOutputTokens: 150, temperature: 0.9 },
         })
       );
       return parse(res.text ?? "");

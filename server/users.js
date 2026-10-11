@@ -1,5 +1,4 @@
 // Each registered user. Key = the phone number that identifies them.
-// Add contacts by adding entries to the contacts array.
 
 export const USERS = {
   "+14706203647": {
@@ -9,15 +8,15 @@ export const USERS = {
     duressPhrase: "water my plants",
     checkinPhrase: "i'm good",
     contacts: [
-      { name: "Mom", phone: "+14706203647", whatsapp: "whatsapp:+14706203647" },
-      // add more here:
-      // { name: "Alex", phone: "+1XXXXXXXXXX", whatsapp: "whatsapp:+1XXXXXXXXXX" },
+      { name: "Nouman Kabir",   phone: "+14049409582", whatsapp: "whatsapp:+14049409582" },
+      { name: "Angel Sudan",    phone: "+14706025357", whatsapp: "whatsapp:+14706025357" },
+      { name: "Aayushi Sale",   phone: "+14706805711", whatsapp: "whatsapp:+14706805711" },
+      { name: "Bethany English", phone: "+12293763570", whatsapp: "whatsapp:+12293763570" },
     ],
   },
 };
 
 // Voice calls arrive without a caller ID, so they fall through to this.
-// Pointing it at the primary user keeps the demo correct.
 export const DEFAULT_USER = USERS["+14706203647"];
 
 export function lookupUser(id) {

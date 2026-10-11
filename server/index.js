@@ -7,6 +7,9 @@ const app = express();
 app.use(express.json());
 app.use(express.static("public"));
 
+const AUTO_RESET_MS = 60_000;
+let resetTimer = null;
+
 function freshSession(user = DEFAULT_USER) {
   return {
     status: "IDLE",
@@ -24,15 +27,27 @@ function freshSession(user = DEFAULT_USER) {
 
 let session = freshSession();
 
+function scheduleReset(user, ms) {
+  if (resetTimer) clearTimeout(resetTimer);
+  resetTimer = setTimeout(() => {
+    session = freshSession(user);
+    resetTimer = null;
+    console.log("session auto-reset");
+  }, ms);
+}
+
 app.post("/event", (req, res) => {
   const e = req.body;
   const user = lookupUser(e.who);
 
   if (e.type === "message") {
+    if (resetTimer) { clearTimeout(resetTimer); resetTimer = null; }
     if (session.userName !== user.name) session = freshSession(user);
     session.transcript.push({ from: e.from, text: e.text });
     session.mode = e.mode ?? session.mode;
-    if (session.status === "IDLE") session.status = "ACTIVE";
+    if (session.status === "IDLE" || session.status === "SAFE") {
+      session.status = "ACTIVE";
+    }
   }
 
   if (e.type === "escalate") {
@@ -45,9 +60,19 @@ app.post("/event", (req, res) => {
     session.escalatedAt = new Date().toISOString();
     session.alertText = buildAlert(user).sms;
     alertContacts(user);
+    scheduleReset(user, AUTO_RESET_MS);
+    console.log("escalated — auto-reset in 60s");
+  }
+
+  if (e.type === "resolved") {
+    session.status = "SAFE";
+    session.mode = "menu";
+    scheduleReset(user, 10_000);
+    console.log("resolved — auto-reset in 10s");
   }
 
   if (e.type === "reset") {
+    if (resetTimer) { clearTimeout(resetTimer); resetTimer = null; }
     session = freshSession(user);
   }
 

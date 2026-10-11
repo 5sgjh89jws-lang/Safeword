@@ -5,35 +5,31 @@
 <title>Safety Monitor</title>
 <style>
   * { box-sizing: border-box; margin: 0; }
-  body {
-    background: #0a0a0f; color: #e8e8ea;
-    font: 16px/1.5 -apple-system, system-ui, sans-serif;
-    padding: 32px; min-height: 100vh;
-  }
-  h1 { font-size: 22px; font-weight: 500; margin-bottom: 24px; letter-spacing: -0.5px; }
-  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-  .card { background: #15151c; border: 1px solid #26262f; border-radius: 12px; padding: 20px; }
-  .label { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #76767f; margin-bottom: 12px; }
-  #status { font-size: 56px; font-weight: 500; letter-spacing: -2px; }
-  .IDLE { color: #5f5f6b; }
-  .ACTIVE { color: #5dcaa5; }
-  .ESCALATED { color: #ff4d4d; animation: pulse 1s infinite; }
-  @keyframes pulse { 50% { opacity: 0.35; } }
-  #meta { margin-top: 12px; font-size: 14px; color: #9a9aa4; }
-  #transcript { max-height: 420px; overflow-y: auto; }
-  .msg { padding: 8px 0; border-bottom: 1px solid #1e1e26; font-size: 15px; }
-  .from { color: #76767f; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
-  .sim { border: 2px dashed #ff9f1c; border-radius: 12px; padding: 20px; margin-top: 24px; }
-  .simlabel { color: #ff9f1c; font-size: 13px; letter-spacing: 2px; margin-bottom: 12px; }
-  pre { font: 13px/1.6 ui-monospace, Menlo, monospace; color: #c3c3cc; white-space: pre-wrap; }
+  body { background:#0a0a0f; color:#e8e8ea; font:16px/1.5 -apple-system,system-ui,sans-serif; padding:32px; min-height:100vh; }
+  h1 { font-size:22px; font-weight:500; margin-bottom:24px; letter-spacing:-0.5px; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+  .card { background:#15151c; border:1px solid #26262f; border-radius:12px; padding:20px; }
+  .label { font-size:12px; text-transform:uppercase; letter-spacing:1px; color:#76767f; margin-bottom:12px; }
+  #status { font-size:56px; font-weight:500; letter-spacing:-2px; }
+  .IDLE { color:#5f5f6b; }
+  .ACTIVE { color:#4a9eff; }
+  .SAFE { color:#5dcaa5; }
+  .ESCALATED { color:#ff4d4d; animation:pulse 1s infinite; }
+  @keyframes pulse { 50% { opacity:0.35; } }
+  #meta { margin-top:12px; font-size:14px; color:#9a9aa4; }
+  #transcript { max-height:420px; overflow-y:auto; }
+  .msg { padding:8px 0; border-bottom:1px solid #1e1e26; font-size:15px; }
+  .from { color:#76767f; font-size:12px; text-transform:uppercase; letter-spacing:1px; }
+  .sim { border:2px dashed #ff9f1c; border-radius:12px; padding:20px; margin-top:24px; }
+  .simlabel { color:#ff9f1c; font-size:13px; letter-spacing:2px; margin-bottom:12px; }
+  pre { font:13px/1.6 ui-monospace,Menlo,monospace; color:#c3c3cc; white-space:pre-wrap; }
+  #reset { position:absolute; top:32px; right:32px; background:#26262f; color:#9a9aa4; border:1px solid #3a3a45; border-radius:8px; padding:8px 16px; cursor:pointer; font-size:14px; }
+  #reset:hover { background:#32323d; }
 </style>
 </head>
 <body>
   <h1>Safety Monitor</h1>
-  <button onclick="fetch('/event',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'reset'})})"
-  style="position:absolute;top:32px;right:32px;background:#26262f;color:#9a9aa4;border:1px solid #3a3a45;border-radius:8px;padding:8px 16px;cursor:pointer">
-  Reset
-</button>
+  <button id="reset" onclick="fetch('/event',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'reset'})})">Reset</button>
   <div class="grid">
     <div>
       <div class="card">
@@ -42,8 +38,8 @@
         <div id="meta"></div>
       </div>
       <div class="sim">
-        <div class="simlabel">SIMULATED — NOT SENT</div>
-        <pre id="payload">waiting…</pre>
+        <div class="simlabel">SENT TO EMERGENCY CONTACTS</div>
+        <pre id="payload">waiting...</pre>
       </div>
     </div>
     <div class="card">
@@ -51,7 +47,6 @@
       <div id="transcript"></div>
     </div>
   </div>
-
 <script>
 setInterval(async () => {
   const s = await (await fetch("/state")).json();
@@ -61,26 +56,18 @@ setInterval(async () => {
   el.className = s.status;
 
   document.getElementById("meta").innerHTML =
-    s.userName + " · mode: " + s.mode +
+    s.userName + " &middot; mode: " + s.mode +
+    "<br>" + s.address +
     "<br>" + s.location.lat + ", " + s.location.lng +
+    (s.contacts && s.contacts.length ? "<br>contacts: " + s.contacts.join(", ") : "") +
     (s.trigger ? "<br>trigger: " + s.trigger : "");
 
-  document.getElementById("transcript").innerHTML = s.transcript
+  document.getElementById("transcript").innerHTML = (s.transcript || [])
     .map(m => '<div class="msg"><div class="from">' + m.from + '</div>' + m.text + "</div>")
     .join("");
 
   document.getElementById("payload").textContent =
-    s.status === "ESCALATED"
-      ? JSON.stringify({
-          endpoint: "POST https://api.noonlight.com/dispatch/v1/alarms",
-          body: {
-            name: s.userName,
-            location: { coordinates: s.location, accuracy: 12 },
-            services: { police: true },
-            instructions: { entry: s.trigger }
-          }
-        }, null, 2)
-      : "waiting…";
+    s.status === "ESCALATED" ? s.alertText : "waiting...";
 }, 800);
 </script>
 </body>
