@@ -23,9 +23,9 @@ function report(event: any) {
   }).catch(() => {});
 }
 
-function escalate(trigger: string, lastMessage: string) {
+function escalate(who: string, trigger: string, lastMessage: string) {
   console.log("\n=== ESCALATION ===", trigger, "\n");
-  report({ type: "escalate", trigger, lastMessage });
+  report({ type: "escalate", trigger, lastMessage, who });
 }
 
 const app = await Spectrum({
@@ -40,7 +40,7 @@ for await (const [space, message] of app.messages) {
   if (message.content.type !== "text") continue;
 
   const text = message.content.text.trim();
-  const who = space.id;
+  const who = message.sender?.id ?? space.id;
   const mode = modes.get(who) ?? "menu";
   const started = Date.now();
 
@@ -57,7 +57,7 @@ for await (const [space, message] of app.messages) {
     } else if (text === "2") {
       modes.set(who, "help");
       reply = "Okay. Getting people to you right now.";
-      escalate("help_now", text);
+      escalate(who, "help_now", text);
     } else {
       reply = MENU;
     }
@@ -69,7 +69,7 @@ for await (const [space, message] of app.messages) {
       histories.set(who, []);
       reply = "Good. Glad you made it. I'm here whenever.";
     } else {
-      if (t.duress) escalate("duress_phrase", text);
+      if (t.duress) escalate(who, "duress_phrase", text);
       reply = t.reply;
     }
   } else {
@@ -78,9 +78,9 @@ for await (const [space, message] of app.messages) {
 
   history.push(`agent: ${reply}`);
 
-  report({ type: "message", from: "user", text, mode: modes.get(who) ?? "menu" });
-  report({ type: "message", from: "agent", text: reply });
+  report({ type: "message", from: "user", text, who, mode: modes.get(who) ?? "menu" });
+  report({ type: "message", from: "agent", text: reply, who });
 
   await space.send(reply);
-  console.log(`${Date.now() - started}ms →`, reply.slice(0, 50));
+  console.log(`${Date.now() - started}ms [${who}] →`, reply.slice(0, 40));
 }

@@ -1,50 +1,54 @@
 import "dotenv/config";
 import express from "express";
-import { alertContact, buildAlert } from "./notify.js";
+import { alertContacts, buildAlert } from "./notify.js";
+import { lookupUser, DEFAULT_USER } from "./users.js";
 
 const app = express();
 app.use(express.json());
 app.use(express.static("public"));
 
-let session = {
-  status: "IDLE",
-  mode: "menu",
-  transcript: [],
-  trigger: null,
-  escalatedAt: null,
-  userName: "Sarah Chen",
-  address: "41 Peachtree St NE, Atlanta, GA 30303",
-  location: { lat: 33.7537, lng: -84.3863 },
-  alertText: null,
-};
+function freshSession(user = DEFAULT_USER) {
+  return {
+    status: "IDLE",
+    mode: "menu",
+    transcript: [],
+    trigger: null,
+    escalatedAt: null,
+    userName: user.name,
+    address: user.address,
+    location: user.location,
+    contacts: user.contacts.map(c => c.name),
+    alertText: null,
+  };
+}
+
+let session = freshSession();
 
 app.post("/event", (req, res) => {
   const e = req.body;
+  const user = lookupUser(e.who);
 
   if (e.type === "message") {
+    if (session.userName !== user.name) session = freshSession(user);
     session.transcript.push({ from: e.from, text: e.text });
     session.mode = e.mode ?? session.mode;
     if (session.status === "IDLE") session.status = "ACTIVE";
   }
 
   if (e.type === "escalate") {
+    session.userName = user.name;
+    session.address = user.address;
+    session.location = user.location;
+    session.contacts = user.contacts.map(c => c.name);
     session.status = "ESCALATED";
     session.trigger = e.trigger;
     session.escalatedAt = new Date().toISOString();
-    session.alertText = buildAlert(session).sms;
-    alertContact(session);
+    session.alertText = buildAlert(user).sms;
+    alertContacts(user);
   }
 
   if (e.type === "reset") {
-    session = {
-      ...session,
-      status: "IDLE",
-      mode: "menu",
-      transcript: [],
-      trigger: null,
-      escalatedAt: null,
-      alertText: null,
-    };
+    session = freshSession(user);
   }
 
   res.json({ ok: true });
